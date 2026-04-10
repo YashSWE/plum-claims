@@ -21,7 +21,7 @@ export default function ReviewPage() {
   const handleAdjudicate = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/v1/adjudicate', {
+      const res = await fetch('https://plum-claims.onrender.com/api/v1/adjudicate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

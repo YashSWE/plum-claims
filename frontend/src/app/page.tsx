@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useClaimContext } from '@/context/ClaimContext';
 import { supabase } from '@/lib/supabase';
@@ -11,7 +11,13 @@ export default function IntakePage() {
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState('Analyze Case with AI');
   const router = useRouter();
+
+  // Wake up Render free-tier backend upon loading the site
+  useEffect(() => {
+    fetch('https://plum-claims.onrender.com/').catch(() => {});
+  }, []);
   const { setCaseData } = useClaimContext();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -23,6 +29,12 @@ export default function IntakePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setLoadingStatus('AI Analyzing Documents...');
+
+    // If Render takes longer than 8s, update text to notify user of cold start
+    const coldStartTimer = setTimeout(() => {
+      setLoadingStatus('Waking up server... (This takes ~50s on free tier)');
+    }, 8000);
     
     try {
       const formData = new FormData();
@@ -33,8 +45,8 @@ export default function IntakePage() {
         formData.append('files', file);
       });
 
-      // Make the call to FastAPI
-      const res = await fetch('http://127.0.0.1:8000/api/v1/extract', {
+      // Make the call to FastAPI backend on Render
+      const res = await fetch('https://plum-claims.onrender.com/api/v1/extract', {
         method: 'POST',
         body: formData,
       });
@@ -50,7 +62,9 @@ export default function IntakePage() {
       console.error(error);
       alert("There was an error communicating with the Adjudicator. Please ensure the backend is running.");
     } finally {
+      clearTimeout(coldStartTimer);
       setLoading(false);
+      setLoadingStatus('Analyze Case with AI');
     }
   };
 
@@ -126,7 +140,7 @@ export default function IntakePage() {
                   disabled={loading}
                   className="bg-primary hover:bg-primary-container disabled:opacity-50 text-on-primary px-10 py-3 rounded-lg font-bold shadow-lg transition-transform active:scale-95"
                 >
-                  {loading ? 'AI Analyzing Documents...' : 'Analyze Case with AI'}
+                  {loadingStatus}
                 </button>
               </div>
             </form>
