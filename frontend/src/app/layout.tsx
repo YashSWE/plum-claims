@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ClaimAdjudicate",
-  description: "Next Generation Claim Processing",
+  title: "Plum Claim Engine",
+  description: "Next Generation AI Claim Processing",
 };
 
 export default function RootLayout({
@@ -28,13 +28,25 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-surface text-on-surface font-body">
         <ClaimProvider>
-          <header className="fixed top-0 w-full z-50 border-b border-stone-200/20 bg-[#fcf9f8]/90 dark:bg-stone-950/90 backdrop-blur-md shadow-sm">
+          <header className="fixed top-0 w-full z-50 glass-nav bg-[#fcf9f8]/90 dark:bg-stone-950/90 backdrop-blur-md shadow-[0_2px_6px_rgba(0,0,0,0.04)] border-b border-stone-200/20">
             <div className="flex justify-between items-center px-8 h-20 max-w-[1440px] mx-auto">
               <div className="flex items-center gap-12">
-                <span className="text-[#ba0036] font-bold text-2xl tracking-tighter">ClaimAdjudicate</span>
-                <nav className="hidden md:flex gap-8 items-center pt-4">
-                  <a className="text-[#ba0036] font-bold border-b-2 border-[#ba0036] pb-4 font-['Inter'] font-medium text-sm tracking-tight transition-colors duration-200" href="/">New Claim</a>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary font-bold">P</div>
+                  <span className="text-primary font-bold text-2xl tracking-tighter">Plum Claim Engine</span>
+                </div>
+                <nav className="hidden md:flex gap-8 items-center h-full">
+                  <a className="text-primary font-bold border-b-2 border-primary h-20 flex items-center font-medium text-sm tracking-tight transition-colors duration-200" href="/">New Claim</a>
+                  <a className="text-on-surface-variant font-medium text-sm tracking-tight h-20 flex items-center hover:text-primary transition-colors duration-200" href="#">History</a>
                 </nav>
+              </div>
+              <div className="flex items-center gap-4">
+                <button className="p-2 text-on-surface-variant hover:text-primary transition-all">
+                  <span className="material-symbols-outlined">notifications</span>
+                </button>
+                <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+                   <span className="material-symbols-outlined">account_circle</span>
+                </div>
               </div>
             </div>
           </header>

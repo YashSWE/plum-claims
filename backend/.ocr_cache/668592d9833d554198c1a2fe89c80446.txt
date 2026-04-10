@@ -1,0 +1,10 @@
+LUXURY HOSPITAL	
+TAX INVOICE / BILL	
+Patient Name: Priya Patel	Date :	15/04/2026	
+PARTICULARS	Æ40UNT (INR)	
+Consultation Fee	5000	
+Diagnostic Tests	Rs.	25000	
+Medicines	Rs.	3000	
+Subtotal :	Rs.	33000	
+GST (18%) :	Rs.	5940	
+TOTAL :	38940

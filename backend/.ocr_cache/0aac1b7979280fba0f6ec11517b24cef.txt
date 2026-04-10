@@ -1,0 +1,10 @@
+APOLLO CLINIC	
+TAX INVOICE / BILL	
+Patient Name :	Rahul Desai	Date :	15/04/2026	
+PARTICULARS	Æ40UNT (INR)	
+Consultation Fee	800	
+Diagnostic Tests	Rs.	1500	
+Medicines	Rs.	250	
+Subtotal :	Rs.	2550	
+GST (18%) :	459	
+TOTAL :	3009

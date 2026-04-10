@@ -6,11 +6,17 @@ from datetime import date
 class PrescriptionDoc(BaseModel):
     doctor_name: Optional[str] = None
     doctor_reg: Optional[str] = None
-    diagnosis: Optional[str] = None
+    diagnoses: List[str] = []
     medicines_prescribed: Optional[List[str]] = []
     procedures: Optional[List[str]] = []
     tests_prescribed: Optional[List[str]] = []
     treatment: Optional[str] = None
+
+class BillLineItem(BaseModel):
+    description: str
+    quantity: float = 1.0
+    unit_price: float = 0.0
+    total_price: float = 0.0
 
 class BillDoc(BaseModel):
     consultation_fee: Optional[float] = 0.0
@@ -22,12 +28,12 @@ class BillDoc(BaseModel):
     therapy_charges: Optional[float] = 0.0
     mri_scan: Optional[float] = 0.0
     test_names: Optional[List[str]] = []
-    # Any other dynamic fields can be accessed if we used a more dynamic dict, but explicit fields help validation
+    line_items: Optional[List[BillLineItem]] = []
 
 class Documents(BaseModel):
     prescription: Optional[PrescriptionDoc] = None
     bill: Optional[BillDoc] = None
-    # We could also use dicts if bills vary drastically
+    raw_transcripts: List[Dict[str, str]] = [] # Filename and content
 
 # --- Case Model ---
 class CaseInput(BaseModel):
@@ -39,6 +45,7 @@ class CaseInput(BaseModel):
     previous_claims_same_day: Optional[int] = 0
     hospital: Optional[str] = None
     cashless_request: Optional[bool] = False
+    context: Optional[str] = None
     documents: Documents
 
 class Case(BaseModel):
@@ -97,10 +104,12 @@ class Policy(BaseModel):
 class Verdict(BaseModel):
     claim_id: str
     decision: str  # APPROVED, REJECTED, PARTIAL, MANUAL_REVIEW
+    total_claim_amount: float = 0.0
     approved_amount: float = 0.0
     rejection_reasons: List[str] = []
     flags: List[str] = []
     deductions: Dict[str, float] = {}
+    deduction_details: List[Dict[str, Any]] = [] # [{ "category": "Copay", "amount": 100, "reason": "..." }]
     cashless_approved: Optional[bool] = None
     network_discount: Optional[float] = None
     confidence_score: float = 0.0

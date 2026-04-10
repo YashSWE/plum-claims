@@ -16,7 +16,8 @@ export default function IntakePage() {
 
   // Wake up Render free-tier backend upon loading the site
   useEffect(() => {
-    fetch('https://plum-claims.onrender.com/').catch(() => {});
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://plum-claims.onrender.com';
+    fetch(API_BASE_URL).catch(() => {});
   }, []);
   const { setCaseData } = useClaimContext();
 
@@ -40,13 +41,16 @@ export default function IntakePage() {
       const formData = new FormData();
       formData.append('member_id', memberId);
       formData.append('member_name', memberName);
+      formData.append('context', description); // Sent as 'context' to backend
       formData.append('treatment_date', new Date().toISOString().split('T')[0]);
       files.forEach(file => {
         formData.append('files', file);
       });
 
-      // Make the call to FastAPI backend on Render
-      const res = await fetch('https://plum-claims.onrender.com/api/v1/extract', {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://plum-claims.onrender.com';
+
+      // Make the call to FastAPI backend
+      const res = await fetch(`${API_BASE_URL}/api/v1/extract`, {
         method: 'POST',
         body: formData,
       });
@@ -57,7 +61,7 @@ export default function IntakePage() {
       }
 
       const data = await res.json();
-      setCaseData(data);
+      setCaseData(data.case);
       router.push('/claim/review');
     } catch (error) {
       console.error(error);
@@ -90,36 +94,36 @@ export default function IntakePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         <div className="lg:col-span-12 space-y-8">
-          <section className="bg-surface-container-lowest p-8 md:p-10 rounded-2xl shadow-sm">
+          <section className="bg-surface-container-lowest p-8 md:p-10 rounded-2xl shadow-sm border border-outline-variant/10">
             <div className="mb-8">
-              <h1 className="text-3xl font-extrabold tracking-tight text-on-surface mb-2">Submit New Claim</h1>
-              <p className="text-on-surface-variant">Please provide basic info and digital copies of your clinical notes, bills, or prescriptions.</p>
+              <h1 className="text-4xl font-extrabold tracking-tight text-on-surface mb-2">Submit New Claim</h1>
+              <p className="text-on-surface-variant text-lg">Upload your medical documents and our AI engine will handle the rest.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Member ID</label>
-                  <input required value={memberId} onChange={e => setMemberId(e.target.value)} className="w-full h-12 bg-surface-container-low rounded-lg px-4 border border-outline/20 focus:outline-primary" placeholder="EMP-1234" />
+                  <label className="text-xs font-bold uppercase tracking-widest text-primary">Member ID</label>
+                  <input required value={memberId} onChange={e => setMemberId(e.target.value)} className="w-full h-12 bg-surface-container-low rounded-xl px-4 border border-outline/20 focus:ring-2 focus:ring-primary focus:outline-none transition-all" placeholder="EMP-1234" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Patient Name</label>
-                  <input required value={memberName} onChange={e => setMemberName(e.target.value)} className="w-full h-12 bg-surface-container-low rounded-lg px-4 border border-outline/20 focus:outline-primary" placeholder="Alexandra Smith" />
+                  <label className="text-xs font-bold uppercase tracking-widest text-primary">Patient Name</label>
+                  <input required value={memberName} onChange={e => setMemberName(e.target.value)} className="w-full h-12 bg-surface-container-low rounded-xl px-4 border border-outline/20 focus:ring-2 focus:ring-primary focus:outline-none transition-all" placeholder="Alexandra Smith" />
                 </div>
                 <div className="md:col-span-2 space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Description of Symptoms / Request</label>
-                  <textarea required value={description} onChange={e => setDescription(e.target.value)} className="w-full h-24 bg-surface-container-low rounded-lg p-4 border border-outline/20 focus:outline-primary resize-none" placeholder="E.g., Visited the clinic for viral fever and throat pain. Paid cash..." />
+                  <label className="text-xs font-bold uppercase tracking-widest text-primary">Claim Context / Medical Notes</label>
+                  <textarea required value={description} onChange={e => setDescription(e.target.value)} className="w-full h-24 bg-surface-container-low rounded-xl p-4 border border-outline/20 focus:ring-2 focus:ring-primary focus:outline-none transition-all resize-none" placeholder="Provide context about the disease, treatment, or specific requests..." />
                 </div>
               </div>
 
               <div className="mt-8">
-                <label className="relative flex flex-col items-center justify-center border-2 border-dashed border-primary rounded-2xl p-12 bg-surface-container-low/30 hover:bg-surface-container-low/50 cursor-pointer">
-                  <div className="bg-surface-container-lowest w-16 h-16 rounded-full flex items-center justify-center shadow-sm mb-6">
+                <label className="relative flex flex-col items-center justify-center border-2 border-dashed border-primary/30 rounded-2xl p-12 bg-primary/5 hover:bg-primary/10 hover:border-primary transition-all cursor-pointer group">
+                  <div className="bg-surface-container-lowest w-16 h-16 rounded-full flex items-center justify-center shadow-sm mb-6 group-hover:scale-110 transition-transform">
                     <span className="material-symbols-outlined text-primary text-3xl">upload_file</span>
                   </div>
                   <h3 className="text-lg font-bold mb-2">Drag and drop files here</h3>
-                  <p className="text-on-surface-variant text-sm mb-6">Or click to select Medical Documents</p>
-                  <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-on-surface-variant opacity-50">Supported: PDF, JPG, PNG</span>
+                  <p className="text-on-surface-variant text-sm mb-6">Invoices, Prescriptions, Laboratory Reports</p>
+                  <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-primary/50">Supported: PDF, JPG, PNG</span>
                   <input type="file" multiple required className="hidden" onChange={handleFileChange} />
                 </label>
                 {files.length > 0 && (
