@@ -32,45 +32,29 @@ class AdjudicationEngine:
         bill_dict = bill.model_dump() if bill else {}
         bill_items = [k for k, v in bill_dict.items() if isinstance(v, (int, float)) and v > 0]
         
-        prompt = f"""
-        You are a strict medical insurance claims processor.
-        Diagnosis: {diagnosis}
-        Treatment/Procedures: {procedures} + "{treatment}"
-        Medicines: {medicines}
-        Bill Items Claimed: {bill_items}
-        
-        Policy Exclusions List: {json.dumps(self.policy.exclusions)}
-        
-        Your task:
-        1. Evaluate if any 'Bill Items Claimed' or 'Treatment/Procedures' strictly fall under the Policy Exclusions.
-           If so, list the exact Bill Item string (like 'teeth_whitening' or 'diet_plan') or Procedure name, and format the reason as something like "Teeth whitening - cosmetic procedure" or "Weight loss treatments are excluded from coverage".
-        2. Evaluate overall medical necessity.
-        
-        Return ONLY valid JSON with this exact schema:
-        {{
-            "excluded_items": [
-               {{"item": "string", "reason": "string"}}
-            ],
-            "is_medically_necessary": true,
-            "necessity_reason": "string"
-        }}
-        """
-        
         GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
         if GOOGLE_API_KEY:
              client = genai.Client(api_key=GOOGLE_API_KEY)
              try:
+                 prompt = f"""
+                 You are a medical insurance reasoning agent.
+                 Given the following case description: '{self.case.description}' and input data: '{self.case.input_data}'
+                 Determine if this procedure/treatment exists within these specific exclusions: {', '.join(self.policy.exclusions)}.
+                 
+                 Respond strictly in JSON format with two keys:
+                 'medical_necessity' (boolean): True if it aligns with standard care and is not an exclusion.
+                 'triggered_exclusions' (list of strings): any exclusions that explicitly match.
+                 """
                  response = client.models.generate_content(
-                    model='gemini-2.5-flash', 
-                    contents=prompt,
-                    config=genai.types.GenerateContentConfig(temperature=0.1)
+                     model='gemini-1.5-flash', 
+                     contents=prompt
                  )
-                 resp_text = response.text.replace("```json", "").replace("```", "").strip()
-                 parsed = json.loads(resp_text)
-                 for ex in parsed.get("excluded_items", []):
-                     self.llm_excluded_items[ex["item"].lower()] = ex["reason"]
-                 self.llm_medically_necessary = parsed.get("is_medically_necessary", True)
-                 self.llm_necessity_reason = parsed.get("necessity_reason", "")
+                 response_text = response.text.replace("```json", "").replace("```", "").strip()
+                 llm_verdict = json.loads(response_text)
+                 
+                 self.llm_medically_necessary = llm_verdict.get("medical_necessity", True)
+                 for ex in llm_verdict.get("triggered_exclusions", []):
+                      self.llm_excluded_items[ex.lower()] = f"{ex} - excluded"
              except Exception as e:
                  print("LLM Error:", e)
                  

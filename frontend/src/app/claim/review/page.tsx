@@ -30,7 +30,8 @@ export default function ReviewPage() {
       });
 
       if (!res.ok) {
-        throw new Error('Adjudication failed');
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Adjudication failed');
       }
 
       const verdict = await res.json();
@@ -40,7 +41,7 @@ export default function ReviewPage() {
       router.push('/claim/verdict');
     } catch (error) {
       console.error(error);
-      alert("Adjudication Engine failed. See console.");
+      alert(`Adjudicator Node Error: ${error instanceof Error ? error.message : 'See console.'}`);
     } finally {
       setLoading(false);
     }

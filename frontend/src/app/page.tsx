@@ -52,7 +52,8 @@ export default function IntakePage() {
       });
 
       if (!res.ok) {
-        throw new Error('Extraction via AI failed');
+        const errorData = await res.json();
+        throw new Error(errorData.detail || 'Extraction via AI failed');
       }
 
       const data = await res.json();
@@ -60,7 +61,7 @@ export default function IntakePage() {
       router.push('/claim/review');
     } catch (error) {
       console.error(error);
-      alert("There was an error communicating with the Adjudicator. Please ensure the backend is running.");
+      alert(`AI Extraction Error: ${error instanceof Error ? error.message : 'Unknown Error'}`);
     } finally {
       clearTimeout(coldStartTimer);
       setLoading(false);

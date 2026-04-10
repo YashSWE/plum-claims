@@ -54,7 +54,7 @@ def parse_documents_to_case(member_info: dict, documents_texts: list) -> CaseInp
     
     client = genai.Client(api_key=GOOGLE_API_KEY)
     response = client.models.generate_content(
-        model='gemini-2.5-flash',
+        model='gemini-1.5-flash',
         contents=prompt
     )
     response_text = response.text.replace("```json", "").replace("```", "").strip()
