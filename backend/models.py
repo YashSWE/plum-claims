@@ -27,8 +27,10 @@ class BillDoc(BaseModel):
     diet_plan: Optional[float] = 0.0
     therapy_charges: Optional[float] = 0.0
     mri_scan: Optional[float] = 0.0
+    tax: Optional[float] = 0.0
     test_names: Optional[List[str]] = []
     line_items: Optional[List[BillLineItem]] = []
+
 
 class Documents(BaseModel):
     prescription: Optional[PrescriptionDoc] = None

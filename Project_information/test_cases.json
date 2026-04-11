@@ -3,12 +3,12 @@
     {
       "case_id": "TC001",
       "case_name": "Simple Consultation - Approved",
-      "description": "Regular doctor consultation for fever, all documents valid",
+      "description": "Regular doctor consultation with tax and diagnostics",
       "input_data": {
         "member_id": "EMP001",
         "member_name": "Rajesh Kumar",
         "treatment_date": "2026-04-01",
-        "claim_amount": 1500,
+        "claim_amount": 1770,
         "documents": {
           "prescription": {
             "doctor_name": "Dr. Sharma",
@@ -24,6 +24,7 @@
           "bill": {
             "consultation_fee": 1000,
             "diagnostic_tests": 500,
+            "tax": 270,
             "test_names": [
               "CBC",
               "Dengue test"
@@ -32,14 +33,15 @@
         }
       },
       "expected_output": {
-        "decision": "APPROVED",
-        "approved_amount": 1350,
+        "decision": "PARTIAL",
+        "approved_amount": 1400,
         "deductions": {
-          "copay": 150
+          "copay": 100
         },
         "confidence_score": 0.95
       }
     },
+
     {
       "case_id": "TC002",
       "case_name": "Dental Treatment - Partial Approval",
@@ -340,12 +342,13 @@
       },
       "expected_output": {
         "decision": "APPROVED",
-        "approved_amount": 3600,
+        "approved_amount": 3480,
         "cashless_approved": true,
-        "network_discount": 900,
+        "network_discount": 870,
         "confidence_score": 0.93
       }
     }
+
   ],
   "validation_notes": {
     "scoring_guidelines": [

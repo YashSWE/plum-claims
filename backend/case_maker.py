@@ -86,10 +86,12 @@ def parse_documents_to_case(member_info: dict, documents_texts: list) -> dict:
                 "consultation_fee": 0.0,
                 "diagnostic_tests": 0.0,
                 "medicines": 0.0,
+                "tax": 0.0,
                 "line_items": [
                     {{"description": "Item", "quantity": 1.0, "unit_price": 0.0, "total_price": 0.0}}
                 ]
             }}
+
         }}
     }}
 

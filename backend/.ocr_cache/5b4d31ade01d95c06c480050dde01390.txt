@@ -1,0 +1,17 @@
+CITY	GENERAL HOSPITAL	
+INVOICE / RECEIPT	
+Bill	B-TCOOI	
+Patient: Rajesh Kumar	
+Date: 2026-04-01	
+AMOUNT	( INR)	
+PARTICULARS	
+1, ooo	
+Consultat on Fee	
+500	
+Diagnostic Tests	
+1,500	
+Subtota	
+270	
+GST (18%)	
+1,770.00	
+TOTAL :
