@@ -114,7 +114,7 @@ class AdjudicationEngine:
                  2. If an item is explicitly mentioned in EXCLUSIONS, mark it as false.
                  3. Provide a clear reason for any rejection.
                  
-                 Respond in JSON:
+                 Respond in provided JSON format only:
                  {{
                    "overall_medical_necessity": boolean,
                    "overall_reasoning": "summary",

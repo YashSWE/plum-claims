@@ -11,7 +11,7 @@ export default function CaseReviewPage() {
   const [selectedVerdict, setSelectedVerdict] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8008';
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://plum-claims.onrender.com';
 
   const fetchData = async () => {
     setLoading(true);

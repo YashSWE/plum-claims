@@ -6,11 +6,14 @@ export default function AccuracyMetrics() {
   const [results, setResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://plum-claims.onrender.com';
+
   const runEvaluation = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8008/api/v1/evaluation/run');
+      const res = await fetch(`${API_BASE_URL}/api/v1/evaluation/run`);
       const data = await res.json();
+
       setResults(data);
     } catch (err) {
       console.error(err);

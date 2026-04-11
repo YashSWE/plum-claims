@@ -11,8 +11,10 @@ export default function PolicyAdmin() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://plum-claims.onrender.com';
+  
   useEffect(() => {
-    fetch('http://localhost:8008/api/v1/policy')
+    fetch(`${API_BASE_URL}/api/v1/policy`)
       .then(res => res.json())
       .then(data => {
         setPolicy(data);
@@ -25,11 +27,12 @@ export default function PolicyAdmin() {
     setSaving(true);
     setMessage('');
     try {
-      const res = await fetch('http://localhost:8008/api/v1/policy', {
+      const res = await fetch(`${API_BASE_URL}/api/v1/policy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(policy)
       });
+
       if (res.ok) {
         setMessage('Policy updated successfully!');
       } else {

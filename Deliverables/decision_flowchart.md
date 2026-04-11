@@ -39,14 +39,6 @@ flowchart TD
     Partial --> End
     Approved --> End
 
-    style Phase0 fill:#f9f,stroke:#333
-    style Phase1 fill:#bbf,stroke:#333
-    style Phase2 fill:#bfb,stroke:#333
-    style Phase3 fill:#fdb,stroke:#333
-    style Rejected fill:#ff9999
-    style Approved fill:#99ff99
-    style Partial fill:#ffff99
-    style Manual fill:#ffcc99
 ```
 
 ## Logic Detail
