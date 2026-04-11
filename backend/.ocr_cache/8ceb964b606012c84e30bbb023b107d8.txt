@@ -1,0 +1,17 @@
+CITY	GENERAL HOSPITAL	
+INVOICE / RECEIPT	
+Bill	B-TCOII	
+Patient: Alexandra	Sm th	
+Date: 2026-04-10	
+AMOUNT	( INR)	
+PARTICULARS	
+1,500	
+Consultat on Fee	
+2, ooo	
+Diagnostic Tests	
+3,500	
+Subtota	
+630	
+GST (18%)	
+4,130.00	
+TOTAL :

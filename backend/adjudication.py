@@ -309,9 +309,15 @@ class AdjudicationEngine:
             return False
             
         # 3. Duplicate Claim Check (Rule 86)
-        if db.check_duplicate_claim(self.case.input_data.member_id, self.case.input_data.treatment_date, self.case.input_data.claim_amount):
+        if db.check_duplicate_claim(
+            self.case.input_data.member_id, 
+            self.case.input_data.treatment_date, 
+            self.case.input_data.claim_amount,
+            exclude_case_id=self.case.case_id
+        ):
              self._add_rejection(RejectionReason.DUPLICATE_CLAIM, "A similar claim for this treatment date already exists.")
              return False
+
              
         return True
         

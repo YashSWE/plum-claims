@@ -105,28 +105,26 @@ class DatabaseManager:
             print(f"Error uploading document: {e}")
             return ""
 
-    def check_duplicate_claim(self, member_id: str, treatment_date: str, claim_amount: float) -> bool:
+    def check_duplicate_claim(self, member_id: str, treatment_date: str, claim_amount: float, exclude_case_id: str = None) -> bool:
         """Checks if a claim with same member, date and amount already exists."""
         if not self.supabase:
             return False
         try:
-            # Note: Supabase JSON filtering uses ->> for text extraction
             # We search within the 'data' column which contains the whole Case object
-            # Path: data -> input_data -> (field)
-            res = self.supabase.table("case_logs").select("id").filter("data->input_data->>member_id", "eq", member_id).filter("data->input_data->>treatment_date", "eq", treatment_date).execute()
+            # We must exclude the current case_id if provided
+            query = self.supabase.table("case_logs").select("id") \
+                .filter("data->input_data->>member_id", "eq", member_id) \
+                .filter("data->input_data->>treatment_date", "eq", treatment_date) \
+                .filter("data->input_data->>claim_amount", "eq", str(claim_amount))
             
-            # For amount, we check it manually in the results to avoid float precision issues in SQL filtering if needed,
-            # or we can try filtering if we are confident in the string representation
-            for row in res.data:
-                # We need to fetch the actual data to check the amount if we didn't filter it
-                pass
-            
-            # Actually, let's try direct filtering for amount too
-            res = self.supabase.table("case_logs").select("id").filter("data->input_data->>member_id", "eq", member_id).filter("data->input_data->>treatment_date", "eq", treatment_date).filter("data->input_data->>claim_amount", "eq", str(claim_amount)).execute()
-            
+            if exclude_case_id:
+                query = query.filter("data->>case_id", "neq", exclude_case_id)
+                
+            res = query.execute()
             return len(res.data) > 0
         except Exception as e:
             print(f"Error checking duplicate claim: {e}")
             return False
+
 
 db = DatabaseManager()

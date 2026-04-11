@@ -46,8 +46,8 @@ def adjudicate_claim(payload: dict):
         verdict = get_verdict(case, policy)
         
         # Save logs for future analytics, dashboards, and appeal tracking
-        db.save_case_log(case.model_dump())
         db.save_verdict_log(verdict.model_dump())
+
         
         if verdict.decision == "MANUAL_REVIEW" and verdict.flags:
             db.save_fraud_flag(case.case_id, "; ".join(verdict.flags))
