@@ -16,6 +16,11 @@ class AdjudicationEngine:
             total_claim_amount=case.input_data.claim_amount,
             deduction_details=[]
         )
+        # Log basic info for audit as requested by user
+        print(f"ADJUDICATING: {case.case_id} for {case.input_data.member_name}")
+        reg = case.input_data.documents.prescription.doctor_reg if case.input_data.documents.prescription else "None"
+        print(f"DEBUG: Doctor Reg received in adjudicator: {reg}")
+
         
         # Call 1 state
         self.doc_consistencies = {"name": True, "date": True, "reg": True}
@@ -43,13 +48,23 @@ class AdjudicationEngine:
                     transcript_block += f"\nFILE: {t.get('filename')}\nCONTENT: {t.get('content')}\n"
                 
                 prompt = f"""
-                Analyze medical document consistency against user-provided data.
-                USER DATA:
+                Analyze medical document consistency and authenticity.
+                USER DATA TO VERIFY:
                 - Member Name: {self.case.input_data.member_name}
                 - Treatment Date: {self.case.input_data.treatment_date}
-                - Doctor Reg Format: [State Code]/[Number]/[Year] (e.g., MMC/2021/042)
+                - Doctor Registration: {self.case.input_data.documents.prescription.doctor_reg if self.case.input_data.documents.prescription else 'Unknown'}
                 
-                DOCUMENTS:
+                COMMON DOCTOR REG FORMATS (In India):
+                - State Medical Council: [State Code]/[Number]/[Year] (e.g., MMC/2021/042, KA/45678/2014)
+                - National/Central: [Number]
+                - Ayush/Dental: Varies but often includes State + Number
+                
+                INSTRUCTIONS:
+                1. Check if the Member Name and Treatment Date appear in the documents.
+                2. Verify if the Doctor Registration number is present in the prescription and matches the provided format or any valid Indian medical registration pattern.
+                3. DO NOT BE OVERLY STRICT. If the number is clearly visible and looks like a medical license (even if format varies slightly), mark it as valid.
+                
+                DOCUMENTS (OCR TRANSCRIPT):
                 {transcript_block}
                 
                 Respond in JSON:
@@ -57,11 +72,13 @@ class AdjudicationEngine:
                   "name_match": boolean,
                   "date_match": boolean,
                   "doctor_reg_valid": boolean,
+                  "reasoning": "brief explanation for your decisions",
                   "confidence": float,
                   "observations": ["file_name: observation"]
                 }}
                 """
                 res = ai.safe_generate(prompt)
+                print(f"--- LLM Call 1 (Consistency) Response ---\n{res}\n---------------------------------------")
                 data = json.loads(res)
                 self.doc_consistencies = {
                     "name": data.get("name_match", True),
@@ -69,6 +86,9 @@ class AdjudicationEngine:
                     "reg": data.get("doctor_reg_valid", True)
                 }
                 self.doc_notes = data.get("observations", [])
+                if not self.doc_consistencies["reg"]:
+                    self.doc_notes.append(f"AI Reasoning: {data.get('reasoning', 'No reason provided')}")
+
             except Exception as e:
                 print("LLM Call 1 Error:", e)
 
@@ -103,16 +123,20 @@ class AdjudicationEngine:
                  
                  CONTEXT:
                  - Patient Diagnosis: {', '.join(pres.diagnoses)}
-                 - Prescribed Treatment: {pres.treatment}
+                 - Prescribed Treatment (from Prescription Doc): {pres.treatment if pres.treatment else 'See medicines_prescribed'}
+                 - Prescribed Medicines: {', '.join(pres.medicines_prescribed or [])}
                  - Policy Exclusions: {', '.join(self.policy.exclusions)}
+                 - COVERED ALTERNATIVE TREATMENTS: {', '.join(self.policy.coverage_details.alternative_medicine.get('covered_treatments', []))}
                  
                  BILL ITEMS TO ASSESS:
                  {', '.join(bill_items)}
                  
                  INSTRUCTIONS:
-                 1. Compare each bill item against the diagnosis. If an item (e.g., teeth whitening) is unrelated to the clinical diagnosis (e.g., tooth decay/root canal) or is a known cosmetic/wellness procedure, mark it as 'is_medically_necessary': false.
-                 2. If an item is explicitly mentioned in EXCLUSIONS, mark it as false.
-                 3. Provide a clear reason for any rejection.
+                 1. Compare each bill item against the diagnosis and the prescription.
+                 2. If an item is for an ALTERNATIVE treatment (like Ayurveda, Yoga, Panchakarma), check if it's in the 'COVERED ALTERNATIVE TREATMENTS'. If yes, mark it as medically necessary.
+                 3. If 'medicines_prescribed' has data (e.g. Antibiotics, Paracetamol), and the bill has 'medicines', consider them medically necessary even if the general 'Prescribed Treatment' summary is brief or 'None'.
+                 4. Rejections: Only mark an item as 'is_medically_necessary': false if it is EXPLICITLY excluded (e.g. Cosmetic, Weight Loss NOT obesity treatment, Wellness) or if there is no medical reason for it at all.
+                 5. Provide a clear reason for your decision.
                  
                  Respond in provided JSON format only:
                  {{
@@ -127,10 +151,19 @@ class AdjudicationEngine:
                  }}
                  """
                  res = ai.safe_generate(prompt)
+                 print(f"--- LLM Call 2 (Medical Assessment) Response ---\n{res}\n---------------------------------------")
                  data = json.loads(res)
                  self.llm_medically_necessary = data.get("overall_medical_necessity", True)
                  self.llm_necessity_reason = data.get("overall_reasoning", "")
                  self.items_assessment = data.get("items_assessment", {})
+                
+                 # Check for explicit exclusions in the items
+                 for item_name, assessment in self.items_assessment.items():
+                     if not assessment.get("is_medically_necessary", True):
+                         reason = assessment.get("reason", "").lower()
+                         if "weight loss" in reason or "diet plan" in reason or "cosmetic" in reason:
+                              self.llm_excluded_items[item_name] = assessment.get("reason")
+
              except Exception as e:
                  print("LLM Call 2 Error:", e)
                  
@@ -165,31 +198,62 @@ class AdjudicationEngine:
             return False
             
         # Call 1 Results Integration
+        extracted_reg = docs.prescription.doctor_reg if docs.prescription else ""
+        raw_text_block = " ".join([t.get('content', '') for t in docs.raw_transcripts])
+        
+        # Self-Correction: If the extracted registration number is found in the OCR raw text,
+        # we bypass the AI's format rejection unless there is a clear fraud note.
+        reg_found_in_raw = extracted_reg and extracted_reg != "Unknown" and extracted_reg in raw_text_block
+        
+        if not self.doc_consistencies["reg"]:
+            if reg_found_in_raw:
+                # Override AI rejection if the number is actually present in the text
+                self.doc_consistencies["reg"] = True
+                self.doc_notes.append(f"System: Overrode AI registration rejection as '{extracted_reg}' was found in documents.")
+            else:
+                self._add_rejection(RejectionReason.DOCTOR_REG_INVALID, "Doctor registration number format is invalid or missing.")
+            
         if not self.doc_consistencies["name"]:
             self._add_rejection(RejectionReason.PATIENT_MISMATCH, "Patient name on documents does not match policy records.")
         if not self.doc_consistencies["date"]:
             self._add_rejection(RejectionReason.DATE_MISMATCH, "Service dates on documents do not match the claim date.")
-        if not self.doc_consistencies["reg"]:
-            self._add_rejection(RejectionReason.DOCTOR_REG_INVALID, "Doctor registration number format is invalid or missing.")
             
-        if not docs.prescription.doctor_reg:
-            self._add_rejection(RejectionReason.DOCTOR_REG_INVALID, "Doctor registration number invalid.")
+        if not docs.prescription.doctor_reg or docs.prescription.doctor_reg == "Unknown":
+            self._add_rejection(RejectionReason.DOCTOR_REG_INVALID, "Doctor registration number invalid or missing on prescription.")
             return False
+            
         return self.verdict.decision != Decision.REJECTED
 
-    def coverage_verification(self) -> bool:
-        # The LLM handled semantic exclusions (weight loss, cosmetic)
-        for item, reason in self.llm_excluded_items.items():
-            if "weight loss" in reason.lower() or "diet" in item.lower():
-                self._add_rejection(RejectionReason.SERVICE_NOT_COVERED, "Weight loss treatments are excluded from coverage")
-                return False
 
+    def coverage_verification(self) -> bool:
+        """
+        Final check for clinical eligibility.
+        - If the ENTIRE medical context is excluded (e.g. Weight Loss/Cosmetic main surgery), return False.
+        - If some items are excluded but others are necessary, we handle it in the next phase (Financials).
+        """
+        # 1. Total Case Rejection based on AI Necessity Assessment
+        if not self.llm_medically_necessary:
+             # Check if there is even at least one necessary item. If not, reject entirely.
+             any_necessary = any(v.get("is_medically_necessary", False) for k, v in self.items_assessment.items())
+             if not any_necessary:
+                 self._add_rejection(RejectionReason.SERVICE_NOT_COVERED, f"Claim rejected based on medical necessity: {self.llm_necessity_reason}")
+                 return False
+
+        # 2. Total Case Rejection based on Primary Service Exclusion (Weight Loss/Infertility)
+        # Scan reasons for "primary" rejection keywords
+        if "weight loss" in self.llm_necessity_reason.lower() or "bariatric" in self.llm_necessity_reason.lower():
+            self._add_rejection(RejectionReason.SERVICE_NOT_COVERED, "Weight loss treatments are explicitly excluded from policy coverage.")
+            return False
+
+        # 3. Specific Pre-Auth requirement check (e.g. MRI > 10000)
         bill = self.case.input_data.documents.bill
         if bill and bill.mri_scan > 0:
             if self.case.input_data.claim_amount > 10000:
                 self._add_rejection(RejectionReason.PRE_AUTH_MISSING, "MRI requires pre-authorization for claims above ₹10000")
                 return False
+                
         return True
+
 
     def limit_validation_check(self) -> bool:
         claim_amt = self.case.input_data.claim_amount
@@ -208,27 +272,28 @@ class AdjudicationEngine:
                 
                 # Check medical necessity for this item from LLM assessment
                 medical_info = self.items_assessment.get(item_key)
-                if medical_info and not medical_info.get("is_medically_necessary", True):
+                
+                # If LLM says not necessary OR item is in hard exclusions
+                is_excluded = item_key.lower() in self.llm_excluded_items
+                is_unnecessary = medical_info and not medical_info.get("is_medically_necessary", True)
+                
+                if is_excluded or is_unnecessary:
                     if self.verdict.decision == Decision.APPROVED:
                         self.verdict.decision = Decision.PARTIAL
                     
+                    reason = ""
+                    if is_excluded:
+                        reason = self.llm_excluded_items.get(item_key.lower(), "Excluded item")
+                    else:
+                        reason = medical_info.get("reason", "Not medically necessary")
+
                     self.verdict.deduction_details.append({
                         "category": "Medical Necessity / Exclusion",
                         "amount": item_amt,
-                        "reason": medical_info.get("reason", f"Non-covered or medically unnecessary item: {item_key.replace('_', ' ').capitalize()}")
+                        "reason": f"{item_key.replace('_', ' ').capitalize()} deducted: {reason}"
                     })
                     continue
 
-                if item_key.lower() in self.llm_excluded_items:
-                    if self.verdict.decision == Decision.APPROVED:
-                        self.verdict.decision = Decision.PARTIAL
-                    self.verdict.rejection_reasons.append(self.llm_excluded_items[item_key.lower()])
-                    self.verdict.deduction_details.append({
-                        "category": "Exclusion",
-                        "amount": item_amt,
-                        "reason": f"Non-covered item: {item_key.replace('_', ' ').capitalize()}"
-                    })
-                    continue
                     
                 # Normal limits
                 if item_key == 'consultation_fee':
@@ -345,15 +410,18 @@ class AdjudicationEngine:
             self.verdict.confidence_score = 0.85
             return self.verdict
             
-        # Phase 3: Coverage Verification & Limits
+        # Phase 3: Medical Review & Exclusions (Call 2)
+        # We run this BEFORE financial limits to prioritize policy exclusions
+        self._run_medical_coverage_analysis()
         if not self.coverage_verification():
             return self.verdict
+            
+        # Phase 4: Financial Limits
         if not self.limit_validation_check():
             return self.verdict
-            
-        # Phase 4: Medical Review (Call 2)
-        self._run_medical_coverage_analysis()
+        
         self.medical_necessity_review()
+
         
         # Post-Processing Tuning
         if self.verdict.decision == Decision.APPROVED:

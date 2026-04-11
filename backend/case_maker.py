@@ -76,11 +76,11 @@ def parse_documents_to_case(member_info: dict, documents_texts: list) -> dict:
         "hospital": "Name",
         "documents": {{
             "prescription": {{
-                "doctor_name": "Name",
-                "doctor_reg": "Registration ID/No",
-                "diagnoses": ["Condition"],
-                "medicines_prescribed": [],
-                "treatment": "Summary"
+                "doctor_name": "Full Name",
+                "doctor_reg": "Registration ID (e.g., KMC 12345, MMC/2021/042, Reg No. 7890)",
+                "diagnoses": ["Specific Condition"],
+                "medicines_prescribed": ["Name, Dose, Frequency"],
+                "treatment": "Detailed summary of treatment/procedure"
             }},
             "bill": {{
                 "consultation_fee": 0.0,
@@ -92,6 +92,7 @@ def parse_documents_to_case(member_info: dict, documents_texts: list) -> dict:
             }}
         }}
     }}
+
     
     CONTENT:
     {aggregated_docs}
