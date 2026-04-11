@@ -1,0 +1,139 @@
+{
+  "test_cases": [
+    {
+      "case_id": "TC011",
+      "case_name": "Vision Care - Standard Approval",
+      "description": "Routine eye examination and diagnostic tests",
+      "input_data": {
+        "member_id": "EMP011",
+        "member_name": "Alexandra Smith",
+        "treatment_date": "2026-04-10",
+        "claim_amount": 3500,
+        "documents": {
+          "prescription": {
+            "doctor_name": "Dr. Miller",
+            "doctor_reg": "EYE/OP/12345/2022",
+            "tests_prescribed": [
+              "Refraction test",
+              "Slit lamp exam"
+            ],
+            "diagnoses": [
+              "Myopia with astigmatism"
+            ]
+          },
+          "bill": {
+            "consultation_fee": 1500,
+            "diagnostic_tests": 2000
+          }
+        }
+      },
+      "expected_output": {
+        "decision": "APPROVED",
+        "approved_amount": 3150,
+        "notes": "Vision care covered up to sub-limits",
+        "confidence_score": 0.96
+      }
+    },
+    {
+      "case_id": "TC012",
+      "case_name": "Physical Therapy - Approved",
+      "description": "Post-injury physical therapy session",
+      "input_data": {
+        "member_id": "EMP012",
+        "member_name": "Michael Jordan",
+        "treatment_date": "2026-04-11",
+        "claim_amount": 5500,
+        "documents": {
+          "prescription": {
+            "doctor_name": "Dr. James",
+            "doctor_reg": "PHY/RE/98765/2021",
+            "treatment": "Lower back physiotherapy session",
+            "diagnoses": [
+              "Lumbar strain"
+            ]
+          },
+          "bill": {
+            "consultation_fee": 1000,
+            "therapy_charges": 4500
+          }
+        }
+      },
+      "expected_output": {
+        "decision": "APPROVED",
+        "approved_amount": 4950,
+        "notes": "Therapy charges validated against diagnosis",
+        "confidence_score": 0.94
+      }
+    },
+    {
+      "case_id": "TC013",
+      "case_name": "Dermatology Consultation - Partial",
+      "description": "Skin treatment with cosmetic components",
+      "input_data": {
+        "member_id": "EMP013",
+        "member_name": "Sarah Jenkins",
+        "treatment_date": "2026-04-12",
+        "claim_amount": 9000,
+        "documents": {
+          "prescription": {
+            "doctor_name": "Dr. Watson",
+            "doctor_reg": "DER/SK/11223/2019",
+            "medicines_prescribed": [
+                "Antifungal cream",
+                "Moisturizer"
+            ],
+            "diagnoses": [
+              "Tinea Corporis"
+            ]
+          },
+          "bill": {
+            "consultation_fee": 2000,
+            "medicines": 2000,
+            "skin_rejuvenation": 5000
+          }
+        }
+      },
+      "expected_output": {
+        "decision": "PARTIAL",
+        "approved_amount": 4000,
+        "notes": "Cosmetic skin rejuvenation excluded from coverage",
+        "confidence_score": 0.91
+      }
+    },
+    {
+      "case_id": "TC014",
+      "case_name": "Emergency Accident Case - Instant Approval",
+      "description": "Emergency trauma care with all valid documents",
+      "input_data": {
+        "member_id": "EMP014",
+        "member_name": "David Miller",
+        "treatment_date": "2026-04-13",
+        "claim_amount": 18000,
+        "hospital": "City Trauma Center",
+        "documents": {
+          "prescription": {
+            "doctor_name": "Dr. Strange",
+            "doctor_reg": "TRM/ER/44556/2020",
+            "procedures": [
+              "Stitching and wound dressing"
+            ],
+            "diagnoses": [
+              "Deep laceration on right forearm"
+            ]
+          },
+          "bill": {
+            "consultation_fee": 3000,
+            "diagnostic_tests": 5000,
+            "medicines": 10000
+          }
+        }
+      },
+      "expected_output": {
+        "decision": "APPROVED",
+        "approved_amount": 16200,
+        "notes": "Emergency care fully covered",
+        "confidence_score": 0.98
+      }
+    }
+  ]
+}

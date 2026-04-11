@@ -37,7 +37,9 @@ export default function RootLayout({
                 </div>
                 <nav className="hidden md:flex gap-8 items-center h-full">
                   <a className="text-primary font-bold border-b-2 border-primary h-20 flex items-center font-medium text-sm tracking-tight transition-colors duration-200" href="/">New Claim</a>
-                  <a className="text-on-surface-variant font-medium text-sm tracking-tight h-20 flex items-center hover:text-primary transition-colors duration-200" href="#">History</a>
+                  <a className="text-on-surface-variant font-medium text-sm tracking-tight h-20 flex items-center hover:text-primary transition-colors duration-200" href="/admin/policy">Policy Settings</a>
+                  <a className="text-on-surface-variant font-medium text-sm tracking-tight h-20 flex items-center hover:text-primary transition-colors duration-200" href="/admin/metrics">AI Accuracy</a>
+                  <a className="text-on-surface-variant font-medium text-sm tracking-tight h-20 flex items-center hover:text-primary transition-colors duration-200" href="/admin/review">Case Review</a>
                 </nav>
               </div>
               <div className="flex items-center gap-4">

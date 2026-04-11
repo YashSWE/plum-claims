@@ -9,6 +9,7 @@ from models import Case, Policy, Verdict, CaseInput
 from adjudication import get_verdict
 from case_maker import parse_documents_to_case
 from database import db
+from pydantic import ValidationError
 
 app = FastAPI(title="Plum Claim Engine API")
 
@@ -73,29 +74,36 @@ async def extract_case_details(
         from ocr_engine import ocr
         
         documents_texts = []
+        document_urls = {}
+        
         for file in files:
             content = await file.read()
             
-            # Extract actual text using OCR engine
+            # 1. OCR Extraction
             extracted_text = ocr.extract_text(content, file.filename)
             documents_texts.append({
                 "filename": file.filename,
                 "content": extracted_text
             })
             
-            # Optional: Save logs to Supabase Storage if bucket exists
+            # 2. Storage Upload
             if db.supabase:
                 try:
-                    # db.supabase.storage.from_('documents').upload(f"claims/{member_id}/{file.filename}", content)
-                    pass
+                    path = f"claims/{member_id}/{str(uuid.uuid4())[:8]}_{file.filename}"
+                    public_url = db.upload_document(file.filename, content, path)
+                    if public_url:
+                        document_urls[file.filename] = public_url
                 except Exception as upload_err:
                     print(f"Warning: Could not upload to storage: {upload_err}")
             
-        # Pass the aggregated list of dicts to parse_documents_to_case
+        # 3. Parse and Create Case
         case_input_data = parse_documents_to_case(member_info, documents_texts)
         
-        print(f"DEBUG: case_input_data type: {type(case_input_data)}")
-        print(f"DEBUG: case_input_data keys: {list(case_input_data.keys()) if isinstance(case_input_data, dict) else 'Not a dict'}")
+        # Add URLs to the input data
+        if "documents" in case_input_data:
+            case_input_data["documents"]["document_urls"] = document_urls
+            # Ensure raw_transcripts are also updated if they were missing something
+            case_input_data["documents"]["raw_transcripts"] = documents_texts
         
         case = Case(
             case_id=f"CLM_{str(uuid.uuid4())[:8].upper()}",
@@ -104,11 +112,77 @@ async def extract_case_details(
             input_data=CaseInput(**case_input_data)
         )
         
-        # Save initial extraction log for auditability
+        # Save initial extraction log
         db.save_case_log(case.model_dump())
         
         return {"case": case.model_dump()}
         
     except Exception as e:
-        print(f"Error in extraction: {e}")
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/policy", response_model=Policy)
+def get_policy():
+    try:
+        policy_path = os.path.join(os.path.dirname(__file__), '..', 'Project_information', 'policy_terms.json')
+        with open(policy_path, 'r') as f:
+            policy_data = json.load(f)
+        return Policy(**policy_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/policy")
+def update_policy(policy: Policy):
+    try:
+        policy_path = os.path.join(os.path.dirname(__file__), '..', 'Project_information', 'policy_terms.json')
+        with open(policy_path, 'w') as f:
+            json.dump(policy.model_dump(), f, indent=2)
+        return {"message": "Policy updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/evaluation/run")
+def run_evaluation():
+    try:
+        from evaluation_engine import EvaluationEngine
+        engine = EvaluationEngine()
+        results = engine.run_all_tests()
+        return results
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Admin & Review Endpoints ---
+
+@app.get("/api/v1/admin/cases")
+def get_all_cases():
+    try:
+        return db.get_all_cases()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/admin/verdicts")
+def get_all_verdicts():
+    try:
+        return db.get_all_verdicts()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/admin/verdict/override")
+def override_verdict(payload: dict):
+    try:
+        claim_id = payload.get("claim_id")
+        updated_verdict = payload.get("verdict")
+        
+        if not claim_id or not updated_verdict:
+            raise HTTPException(status_code=400, detail="claim_id and verdict are required")
+            
+        success = db.update_verdict_log(claim_id, updated_verdict)
+        if success:
+            return {"message": "Verdict overridden successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Verdict not found")
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

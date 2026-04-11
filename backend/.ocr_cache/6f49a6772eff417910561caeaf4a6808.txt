@@ -1,0 +1,15 @@
+CITY	GENERAL HOSPITAL	
+INVOICE / RECEIPT	
+Bill	B-TC007	
+Patient: Suresh Patil	
+Date: 2026-04-02	
+AMOUNT	( INR)	
+PARTICULARS	
+15, ooo	
+Scan	
+15, ooo	
+Subtota	
+2, 700	
+GST (18%)	
+17,700.00	
+TOTAL :

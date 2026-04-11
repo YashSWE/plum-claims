@@ -30,6 +30,7 @@ def parse_documents_to_case(member_info: dict, documents_texts: list) -> dict:
         "documents": {
             "prescription": {
                 "doctor_name": "Pending",
+                "doctor_reg": "Unknown",
                 "diagnoses": [],
                 "medicines_prescribed": [],
                 "procedures": [],
@@ -76,6 +77,7 @@ def parse_documents_to_case(member_info: dict, documents_texts: list) -> dict:
         "documents": {{
             "prescription": {{
                 "doctor_name": "Name",
+                "doctor_reg": "Registration ID/No",
                 "diagnoses": ["Condition"],
                 "medicines_prescribed": [],
                 "treatment": "Summary"

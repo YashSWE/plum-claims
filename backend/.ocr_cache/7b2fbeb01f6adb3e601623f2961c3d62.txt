@@ -1,0 +1,17 @@
+APOLLO HOSPITALS	
+INVOICE / RECEIPT	
+Bill	B-TCOIO	
+Patient: Deepak Shah	
+Date: 2026-04-05	
+AMOUNT	( INR)	
+PARTICULARS	
+1,500	
+Consultat on Fee	
+3,000	
+Medic nes	
+4,500	
+Subtota	
+810	
+GST (18%)	
+5,310.00	
+TOTAL :

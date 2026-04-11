@@ -44,7 +44,7 @@ def generate_prescription_image(case_id, data):
 
     # Info Section
     draw.text((100, 180), f"Patient: {data.get('member_name', 'Patient')}", fill=(0, 0, 0), font=font_text)
-    draw.text((100, 215), f"Date: {data.get('treatment_date', '2024-11-01')}", fill=(0, 0, 0), font=font_text)
+    draw.text((100, 215), f"Date: {data.get('treatment_date', '2026-04-11')}", fill=(0, 0, 0), font=font_text)
     draw.text((700, 180), f"Case ID: {case_id}", fill=(100, 100, 100), font=font_small, anchor="rs")
     
     # Diagnosis
@@ -104,7 +104,7 @@ def generate_bill_image(case_id, data):
 
     # Info Section
     draw.text((100, 150), f"Patient: {data.get('member_name', 'Patient')}", fill=(0, 0, 0), font=font_text)
-    draw.text((100, 185), f"Date: {data.get('treatment_date', '2024-11-01')}", fill=(0, 0, 0), font=font_text)
+    draw.text((100, 185), f"Date: {data.get('treatment_date', '2026-04-11')}", fill=(0, 0, 0), font=font_text)
     draw.text((700, 150), f"Bill #: B-{case_id}", fill=(0, 0, 0), font=font_text, anchor="rs")
     
     draw.line((80, 230, 720, 230), fill=(0, 0, 0), width=2)

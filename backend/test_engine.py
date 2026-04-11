@@ -13,12 +13,14 @@ from adjudication import get_verdict
 
 def run_tests():
     # Load policy
-    with open('../Project_information/policy_terms.json', 'r') as f:
+    policy_path = os.path.join(os.path.dirname(__file__), '..', 'Project_information', 'policy_terms.json')
+    with open(policy_path, 'r') as f:
         policy_data = json.load(f)
     policy = Policy(**policy_data)
 
     # Load test cases
-    with open('../Project_information/test_cases.json', 'r') as f:
+    test_cases_path = os.path.join(os.path.dirname(__file__), '..', 'Project_information', 'test_cases.json')
+    with open(test_cases_path, 'r') as f:
         test_data = json.load(f)
     
     cases = test_data.get('test_cases', [])

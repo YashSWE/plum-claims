@@ -34,6 +34,7 @@ class Documents(BaseModel):
     prescription: Optional[PrescriptionDoc] = None
     bill: Optional[BillDoc] = None
     raw_transcripts: List[Dict[str, str]] = [] # Filename and content
+    document_urls: Optional[Dict[str, str]] = {} # Filename and URL
 
 # --- Case Model ---
 class CaseInput(BaseModel):

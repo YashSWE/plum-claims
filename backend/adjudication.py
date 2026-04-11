@@ -22,6 +22,7 @@ class AdjudicationEngine:
         self.doc_notes = []
         
         # Call 2 state
+        self.items_assessment = {}
         self.llm_excluded_items = {}
         self.llm_medically_necessary = True
         self.llm_necessity_reason = ""
@@ -75,32 +76,61 @@ class AdjudicationEngine:
         pres = self.case.input_data.documents.prescription
         bill = self.case.input_data.documents.bill
         
-        if not pres and not bill:
+        # Don't run semantic medical analysis if core docs are missing
+        if not pres or not bill:
             return
             
         GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
         if GOOGLE_API_KEY:
              from llm_client import ai
              try:
+                 # Map of bill items for LLM to assess
+                 bill_items = []
+                 if bill.consultation_fee > 0: bill_items.append("consultation_fee")
+                 if bill.diagnostic_tests > 0: bill_items.append("diagnostic_tests")
+                 if bill.medicines > 0: bill_items.append("medicines")
+                 if bill.root_canal > 0: bill_items.append("root_canal")
+                 if bill.teeth_whitening > 0: bill_items.append("teeth_whitening")
+                 if bill.diet_plan > 0: bill_items.append("diet_plan")
+                 if bill.therapy_charges > 0: bill_items.append("therapy_charges")
+                 if bill.mri_scan > 0: bill_items.append("mri_scan")
+                 
+                 for item in (bill.line_items or []):
+                     bill_items.append(item.description)
+
                  prompt = f"""
-                 Analyze medical necessity and policy exclusions.
-                 CASE DESCRIPTION: '{self.case.description}'
-                 INPUT DATA: '{self.case.input_data.model_dump_json(exclude={"documents": {"raw_transcripts": True}})}'
-                 EXCLUSIONS: {', '.join(self.policy.exclusions)}
+                 Analyze medical necessity and policy alignment for EACH item in the medical bill.
+                 
+                 CONTEXT:
+                 - Patient Diagnosis: {', '.join(pres.diagnoses)}
+                 - Prescribed Treatment: {pres.treatment}
+                 - Policy Exclusions: {', '.join(self.policy.exclusions)}
+                 
+                 BILL ITEMS TO ASSESS:
+                 {', '.join(bill_items)}
+                 
+                 INSTRUCTIONS:
+                 1. Compare each bill item against the diagnosis. If an item (e.g., teeth whitening) is unrelated to the clinical diagnosis (e.g., tooth decay/root canal) or is a known cosmetic/wellness procedure, mark it as 'is_medically_necessary': false.
+                 2. If an item is explicitly mentioned in EXCLUSIONS, mark it as false.
+                 3. Provide a clear reason for any rejection.
                  
                  Respond in JSON:
                  {{
-                   "medical_necessity": boolean,
-                   "necessity_reasoning": "string",
-                   "triggered_exclusions": ["exclusion_name"]
+                   "overall_medical_necessity": boolean,
+                   "overall_reasoning": "summary",
+                   "items_assessment": {{
+                     "item_name": {{
+                       "is_medically_necessary": boolean,
+                       "reason": "Detailed medical rationale"
+                     }}
+                   }}
                  }}
                  """
                  res = ai.safe_generate(prompt)
                  data = json.loads(res)
-                 self.llm_medically_necessary = data.get("medical_necessity", True)
-                 self.llm_necessity_reason = data.get("necessity_reasoning", "")
-                 for ex in data.get("triggered_exclusions", []):
-                      self.llm_excluded_items[ex.lower()] = f"{ex} - excluded"
+                 self.llm_medically_necessary = data.get("overall_medical_necessity", True)
+                 self.llm_necessity_reason = data.get("overall_reasoning", "")
+                 self.items_assessment = data.get("items_assessment", {})
              except Exception as e:
                  print("LLM Call 2 Error:", e)
                  
@@ -127,8 +157,11 @@ class AdjudicationEngine:
 
     def document_validation_check(self) -> bool:
         docs = self.case.input_data.documents
-        if not docs.prescription and not docs.bill:
-            self._add_rejection(RejectionReason.MISSING_DOCUMENTS, "Both prescription and bill are missing.")
+        if not docs.prescription or not docs.bill:
+            # Prioritize missing documents over medical necessity
+            doc_type = "Prescription" if not docs.prescription else "Bill"
+            if not docs.prescription and not docs.bill: doc_type = "Prescription and Bill"
+            self._add_rejection(RejectionReason.MISSING_DOCUMENTS, f"Required document ({doc_type}) is missing from the claim.")
             return False
             
         # Call 1 Results Integration
@@ -139,7 +172,7 @@ class AdjudicationEngine:
         if not self.doc_consistencies["reg"]:
             self._add_rejection(RejectionReason.DOCTOR_REG_INVALID, "Doctor registration number format is invalid or missing.")
             
-        if docs.prescription and not docs.prescription.doctor_reg:
+        if not docs.prescription.doctor_reg:
             self._add_rejection(RejectionReason.DOCTOR_REG_INVALID, "Doctor registration number invalid.")
             return False
         return self.verdict.decision != Decision.REJECTED
@@ -172,7 +205,20 @@ class AdjudicationEngine:
             for item_key, item_amt in bill_dict.items():
                 if not isinstance(item_amt, (int, float)) or item_amt <= 0:
                     continue
+                
+                # Check medical necessity for this item from LLM assessment
+                medical_info = self.items_assessment.get(item_key)
+                if medical_info and not medical_info.get("is_medically_necessary", True):
+                    if self.verdict.decision == Decision.APPROVED:
+                        self.verdict.decision = Decision.PARTIAL
                     
+                    self.verdict.deduction_details.append({
+                        "category": "Medical Necessity / Exclusion",
+                        "amount": item_amt,
+                        "reason": medical_info.get("reason", f"Non-covered or medically unnecessary item: {item_key.replace('_', ' ').capitalize()}")
+                    })
+                    continue
+
                 if item_key.lower() in self.llm_excluded_items:
                     if self.verdict.decision == Decision.APPROVED:
                         self.verdict.decision = Decision.PARTIAL
@@ -210,9 +256,6 @@ class AdjudicationEngine:
                         })
                     approved += (eligible_amt - copay)
                 else:
-                    # For mri_scan, we already checked auth above. If not rejected, we can add it.
-                    if item_key == 'mri_scan' and self.verdict.decision == Decision.REJECTED:
-                        continue
                     approved += item_amt
                 
         if self.case.input_data.hospital in self.policy.network_hospitals:
@@ -273,9 +316,9 @@ class AdjudicationEngine:
         return True
         
     def medical_necessity_review(self) -> bool:
-        if not self.llm_medically_necessary:
-            self._add_rejection(RejectionReason.NOT_MEDICALLY_NECESSARY, f"Review failed: {self.llm_necessity_reason}")
-            return False
+        # We no longer hard-reject the whole case unless the overall necessity is false 
+        # AND it's not a partial situation.
+        # Actually, let's just use it to power the deductions in limit_validation_check.
         return True
 
     def run(self) -> Verdict:

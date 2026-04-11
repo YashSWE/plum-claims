@@ -46,28 +46,87 @@ class DatabaseManager:
             print(f"Error saving fraud flag: {e}")
             return False
 
-    def check_duplicate_claim(self, member_id: str, treatment_date: str, claim_amount: float) -> bool:
-        """Checks if a matching claim exists for the member on the same date."""
+    def get_all_cases(self) -> list:
+        if not self.supabase:
+            return []
+        try:
+            response = self.supabase.table("case_logs").select("*").order("created_at", desc=True).execute()
+            return response.data
+        except Exception as e:
+            print(f"Error fetching case logs: {e}")
+            return []
+
+    def get_all_verdicts(self) -> list:
+        if not self.supabase:
+            return []
+        try:
+            # We fetch all verdicts and match them in frontend or with a join if needed
+            response = self.supabase.table("verdict_logs").select("*").order("created_at", desc=True).execute()
+            return response.data
+        except Exception as e:
+            print(f"Error fetching verdict logs: {e}")
+            return []
+
+    def update_verdict_log(self, claim_id: str, updated_data: dict) -> bool:
         if not self.supabase:
             return False
         try:
-            # Look for existing approved/partial claims for this member and date
-            # We use a 2% variance for the amount to catch minor changes
-            response = self.supabase.table("verdict_logs").select("data").execute()
+            # We find the row where data->>claim_id == claim_id
+            # Note: For simplicity in this demo, we search for the claim_id in the JSON blob
+            # Ideally we'd have a separate column for claim_id
+            response = self.supabase.table("verdict_logs").select("id, data").execute()
+            target_id = None
             for row in response.data:
-                v = row.get("data", {})
-                # Note: This is an expensive O(N) check in memory, ideally we'd filter in SQL
-                # But for this MVP/Prototoype, we'll look for member_id match in the saved case context
-                # assuming the case_data was saved during the session.
-                # Since the actual case link isn't directly in verdict_logs, we'll simulate success for now
-                # Or if we have a robust schema, we'd do a filtered query.
-                pass
+                if row.get("data", {}).get("claim_id") == claim_id:
+                    target_id = row.get("id")
+                    break
             
-            # Simulated check logic: for now we check if any verdict for same member/date exists
-            # In a real app, we'd query: .eq("data->member_id", member_id).eq("data->treatment_date", treatment_date)
+            if target_id:
+                self.supabase.table("verdict_logs").update({"data": updated_data}).eq("id", target_id).execute()
+                return True
             return False
         except Exception as e:
-            print(f"Error checking duplicate: {e}")
+            print(f"Error updating verdict log: {e}")
+            return False
+
+    def upload_document(self, filename: str, content: bytes, path: str) -> str:
+        """Uploads a file to Supabase storage and returns the public URL."""
+        if not self.supabase:
+            return ""
+        try:
+            # Try to upload to 'documents' bucket
+            bucket_name = "documents"
+            self.supabase.storage.from_(bucket_name).upload(path, content, {"content-type": "image/jpeg" if filename.lower().endswith(('.jpg', '.jpeg')) else "application/pdf"})
+            
+            # Get public URL
+            res = self.supabase.storage.from_(bucket_name).get_public_url(path)
+            return res
+        except Exception as e:
+            print(f"Error uploading document: {e}")
+            return ""
+
+    def check_duplicate_claim(self, member_id: str, treatment_date: str, claim_amount: float) -> bool:
+        """Checks if a claim with same member, date and amount already exists."""
+        if not self.supabase:
+            return False
+        try:
+            # Note: Supabase JSON filtering uses ->> for text extraction
+            # We search within the 'data' column which contains the whole Case object
+            # Path: data -> input_data -> (field)
+            res = self.supabase.table("case_logs").select("id").filter("data->input_data->>member_id", "eq", member_id).filter("data->input_data->>treatment_date", "eq", treatment_date).execute()
+            
+            # For amount, we check it manually in the results to avoid float precision issues in SQL filtering if needed,
+            # or we can try filtering if we are confident in the string representation
+            for row in res.data:
+                # We need to fetch the actual data to check the amount if we didn't filter it
+                pass
+            
+            # Actually, let's try direct filtering for amount too
+            res = self.supabase.table("case_logs").select("id").filter("data->input_data->>member_id", "eq", member_id).filter("data->input_data->>treatment_date", "eq", treatment_date).filter("data->input_data->>claim_amount", "eq", str(claim_amount)).execute()
+            
+            return len(res.data) > 0
+        except Exception as e:
+            print(f"Error checking duplicate claim: {e}")
             return False
 
 db = DatabaseManager()
