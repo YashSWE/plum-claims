@@ -126,11 +126,19 @@ def parse_documents_to_case(member_info: dict, documents_texts: list) -> dict:
                     if "line_items" in ai_bill and isinstance(ai_bill["line_items"], list):
                         final_case["documents"]["bill"]["line_items"] = ai_bill["line_items"]
         
-        # Final sanity check: ensure claim_amount is calculated if it's still 0
+        # Final sanity check: ensure claim_amount is consistent and not double-counted
+        bill = final_case["documents"]["bill"]
+        line_total = sum(item.get("total_price", 0) for item in bill.get("line_items", []))
+        category_total = (bill.get("consultation_fee", 0) + bill.get("diagnostic_tests", 0) + bill.get("medicines", 0) + bill.get("tax", 0))
+        
+        # If the AI return 0 for claim_amount, calculate it
         if final_case["claim_amount"] == 0:
-            bill = final_case["documents"]["bill"]
-            line_total = sum(item.get("total_price", 0) for item in bill.get("line_items", []))
-            final_case["claim_amount"] = line_total or (bill.get("consultation_fee", 0) + bill.get("diagnostic_tests", 0) + bill.get("medicines", 0))
+            final_case["claim_amount"] = line_total or category_total
+        else:
+            # If the AI returned a value that looks like the SUM of both (double counted), fix it
+            if line_total > 0 and category_total > 0 and final_case["claim_amount"] >= (line_total + category_total) * 0.95:
+                print(f"DEBUG: Detected double-counting in AI extraction ({final_case['claim_amount']}). Adjusting to line total.")
+                final_case["claim_amount"] = line_total
 
         return final_case
 

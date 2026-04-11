@@ -50,12 +50,10 @@ export default function ReviewPage() {
 
     handleUpdateField('input_data.documents.bill.line_items', newLineItems);
 
-    const newTotal = newLineItems.reduce((sum, item) => sum + (item.total_price || 0), 0) +
-      (bill?.consultation_fee || 0) +
-      (bill?.diagnostic_tests || 0) +
-      (bill?.medicines || 0);
+    const newTotal = newLineItems.reduce((sum, item) => sum + (item.total_price || 0), 0);
     handleUpdateField('input_data.claim_amount', newTotal);
   };
+
 
   const addLineItem = () => {
     const newItem: BillLineItem = { description: '', quantity: 1, unit_price: 0, total_price: 0 };

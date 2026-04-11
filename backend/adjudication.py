@@ -262,6 +262,12 @@ class AdjudicationEngine:
 
 
     def limit_validation_check(self) -> bool:
+        """
+        Calculates approved amount after categories, sub-limits, and copays.
+        - Prioritizes line_items for breakdown.
+        - Maps descriptions to category buckets (Consultation, Diagnostics, etc.)
+        - Ensures no double counting.
+        """
         claim_amt = self.case.input_data.claim_amount
         if claim_amt > self.policy.coverage_details.per_claim_limit and self.case.case_id != "TC002":
             self._add_rejection(RejectionReason.PER_CLAIM_EXCEEDED, f"Claim amount exceeds per-claim limit of ₹{self.policy.coverage_details.per_claim_limit}")
@@ -272,91 +278,120 @@ class AdjudicationEngine:
         
         if bill:
             bill_dict = bill.model_dump()
-            # Items to exclude from regular category processing because they are processed specifically
-            processed_keys = []
+            items_to_process = []
             
-            for item_key, item_amt in bill_dict.items():
-                if not isinstance(item_amt, (int, float)) or item_amt <= 0:
-                    continue
-                if item_key in ["test_names", "line_items"]:
-                    continue
+            # 1. Gather Items: Prefer line_items if they exist
+            if bill.line_items and len(bill.line_items) > 0:
+                print(f"DEBUG: Processing {len(bill.line_items)} detailed line items.")
+                for li in bill.line_items:
+                    items_to_process.append({"key": li.description, "amt": li.total_price})
                 
-                # SPECIAL RULE: Tax is not claimable
-                if item_key.lower() == "tax":
-                    if self.verdict.decision == Decision.APPROVED:
-                        self.verdict.decision = Decision.PARTIAL
-                    self.verdict.deduction_details.append({
-                        "category": "Policy Exclusion",
-                        "amount": item_amt,
-                        "reason": "Tax/GST is non-claimable per policy terms"
-                    })
-                    continue
+                # If AI also populated categorized top-level keys, we must ignore them to avoid double counting
+                # EXCEPT if the line items don't cover them (e.g. consultation is missing from lines but present at top)
+                line_total = sum(i.total_price for i in bill.line_items)
+                cat_total = (bill.consultation_fee or 0) + (bill.diagnostic_tests or 0) + (bill.medicines or 0) + (bill.tax or 0)
+                
+                # If totals match or line items are comprehensive, we don't add cats.
+                # To be simple and robust: only add top-level if specifically missing from lines.
+                line_desc_block = " ".join([i.description.lower() for i in bill.line_items])
+                if "consultation" not in line_desc_block and bill.consultation_fee > 0:
+                    items_to_process.append({"key": "consultation_fee", "amt": bill.consultation_fee})
+                if not any(kw in line_desc_block for kw in ["test", "scan", "lab", "diagnostic"]) and bill.diagnostic_tests > 0:
+                    items_to_process.append({"key": "diagnostic_tests", "amt": bill.diagnostic_tests})
+                if "tax" not in line_desc_block and bill.tax > 0:
+                    items_to_process.append({"key": "tax", "amt": bill.tax})
+            else:
+                # Fallback to top-level keys if no lines
+                print("DEBUG: No line items found, using categorized fallback.")
+                for k, v in bill_dict.items():
+                    if k not in ["test_names", "line_items"] and isinstance(v, (int, float)) and v > 0:
+                        items_to_process.append({"key": k, "amt": v})
 
-                # Check medical necessity for this item from LLM assessment
-                medical_info = self.items_assessment.get(item_key)
-                is_excluded = item_key.lower() in self.llm_excluded_items
-                is_unnecessary = medical_info and not medical_info.get("is_medically_necessary", True)
+            # 2. Process gathered items through business rules
+            for item in items_to_process:
+                item_key = item["key"]
+                item_amt = item["amt"]
+                
+                # Categorization mapping
+                category = "General"
+                kl = item_key.lower()
+                if "consultation" in kl: category = "consultation"
+                elif any(kw in kl for kw in ["test", "scan", "lab", "diagnostic", "mri", "xray", "ecg"]): category = "diagnostic"
+                elif any(kw in kl for kw in ["medicine", "pharmacy", "drug"]): category = "pharmacy"
+                elif any(kw in kl for kw in ["dental", "root canal", "whitening", "extraction"]): category = "dental"
+                elif any(kw in kl for kw in ["tax", "gst", "vat", "service tax"]): category = "tax"
+                elif any(kw in kl for kw in ["diet", "wellness", "therapy", "panchakarma"]): category = "specialty"
+
+                # A. Handle Medical Necessity / Exclusion
+                # Match line items back to AI Assessment (which used keys or descriptions)
+                medical_assessment = self.items_assessment.get(item_key) or self.items_assessment.get(category)
+                is_excluded = kl in self.llm_excluded_items or category in self.llm_excluded_items
+                is_unnecessary = medical_assessment and not medical_assessment.get("is_medically_necessary", True)
                 
                 if is_excluded or is_unnecessary:
                     if self.verdict.decision == Decision.APPROVED:
                         self.verdict.decision = Decision.PARTIAL
                     
-                    reason = ""
-                    if is_excluded:
-                        reason = self.llm_excluded_items.get(item_key.lower(), "Excluded item")
-                    else:
-                        reason = medical_info.get("reason", "Not medically necessary")
-
+                    reason = medical_assessment.get("reason", "Not medically necessary") if medical_assessment else "Policy Exclusion"
                     self.verdict.deduction_details.append({
                         "category": "Medical Necessity / Exclusion",
                         "amount": item_amt,
-                        "reason": f"{item_key.replace('_', ' ').capitalize()} deducted: {reason}"
+                        "reason": f"Deducted {item_key}: {reason}"
                     })
                     continue
 
-                # Normal Category-Specific Limits and Copays
+                # B. Handle Category-Specific Sub-limits and Copays
                 current_eligible = item_amt
-                category_copay_pct = 0.0
+                copay_pct = 0.0
                 
-                if item_key == 'consultation_fee':
-                    sub_limit = self.policy.coverage_details.consultation_fees.sub_limit
-                    category_copay_pct = self.policy.coverage_details.consultation_fees.copay_percentage
-                    if item_amt > sub_limit:
-                        deducted = item_amt - sub_limit
+                if category == "tax":
+                    # Tax is always 100% deducted
+                    if self.verdict.decision == Decision.APPROVED:
+                        self.verdict.decision = Decision.PARTIAL
+                    self.verdict.deduction_details.append({
+                        "category": "Policy Exclusion",
+                        "amount": item_amt,
+                        "reason": f"Deducted {item_key}: Non-claimable component (Tax/GST)"
+                    })
+                    continue
+
+                elif category == "consultation":
+                    limit = self.policy.coverage_details.consultation_fees.sub_limit
+                    copay_pct = self.policy.coverage_details.consultation_fees.copay_percentage
+                    if item_amt > limit:
+                        deducted = item_amt - limit
                         self.verdict.deduction_details.append({
                             "category": "Policy Sub-limit",
                             "amount": deducted,
-                            "reason": f"Consultation fee exceeds sub-limit of ₹{sub_limit}"
+                            "reason": f"Consultation ({item_key}) exceeds cap of ₹{limit}"
                         })
-                        current_eligible = sub_limit
+                        current_eligible = limit
                 
-                elif item_key == 'diagnostic_tests' or item_key == 'mri_scan':
-                    sub_limit = self.policy.coverage_details.diagnostic_tests.get('sub_limit', 10000)
-                    # Policy doesn't specify diagnostic copay, but TC001 implies 10%? 
-                    # Let's check if diagnostic_tests has a copay in policy. It doesn't.
-                    # However, to fix "stuck at 100", maybe we should check if all items have a default copay?
-                    if item_amt > sub_limit:
-                        deducted = item_amt - sub_limit
+                elif category == "diagnostic":
+                    limit = self.policy.coverage_details.diagnostic_tests.get("sub_limit", 10000)
+                    if item_amt > limit:
+                        deducted = item_amt - limit
                         self.verdict.deduction_details.append({
                             "category": "Policy Sub-limit",
                             "amount": deducted,
-                            "reason": f"Diagnostic tests exceed sub-limit of ₹{sub_limit}"
+                            "reason": f"Diagnostics ({item_key}) exceed cap of ₹{limit}"
                         })
-                        current_eligible = sub_limit
-                
-                # Apply Copay to the eligible amount
-                if category_copay_pct > 0:
-                    item_copay = calculate_copay(current_eligible, category_copay_pct)
-                    self.verdict.deductions['copay'] = self.verdict.deductions.get('copay', 0) + item_copay
+                        current_eligible = limit
+
+                # C. Final Calculation for Item
+                if copay_pct > 0:
+                    copay_val = calculate_copay(current_eligible, copay_pct)
+                    self.verdict.deductions['copay'] = self.verdict.deductions.get('copay', 0) + copay_val
                     self.verdict.deduction_details.append({
                         "category": "Policy Co-pay",
-                        "amount": item_copay,
-                        "reason": f"{category_copay_pct}% Copay applied to {item_key.replace('_', ' ')}"
+                        "amount": copay_val,
+                        "reason": f"{copay_pct}% Copay applied to {item_key}"
                     })
-                    current_eligible -= item_copay
+                    current_eligible -= copay_val
                 
                 approved += current_eligible
-                
+
+        # 3. Final Network Adjustments
         if self.case.input_data.hospital in self.policy.network_hospitals:
             discount_pct = self.policy.coverage_details.consultation_fees.network_discount
             discount_amount = (approved * discount_pct) / 100.0
@@ -373,6 +408,7 @@ class AdjudicationEngine:
 
         self.verdict.approved_amount = approved
         return True
+
 
 
     def fraud_detection_check(self) -> bool:
