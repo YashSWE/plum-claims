@@ -1,5 +1,10 @@
 # Plum Claim Engine - AI-Powered OPD Adjudication
 
+> [!IMPORTANT]
+> **🚀 Final Submission Links**  
+> **Live Demo**: [https://plum-claims-frontend.vercel.app](https://plum-claims-frontend.vercel.app)  
+> **Source Code**: [https://github.com/YashSWE/plum-claims](https://github.com/YashSWE/plum-claims)
+
 A premium, rule-compliant insurance claim adjudication system designed for the Plum intern assignment. This engine leverages advanced AI for document intelligence and enforces complex medical insurance policies with transparency and speed.
 
 ## 🚀 Quick Start
@@ -17,21 +22,24 @@ A premium, rule-compliant insurance claim adjudication system designed for the P
 3. Run the development server: `npm run dev`
 4. Access at `http://localhost:3000`
 
+## 📂 Official Deliverables
+
+All updated project documentation can be found in the [**Deliverables/**](Deliverables/) directory:
+
+- 📊 [**Evaluation Report**](Deliverables/evaluation_report.md)
+- 🏗️ [**Architecture Diagram**](Deliverables/architecture_diagram.md)
+- 🔄 [**Decision Logic Flowchart**](Deliverables/decision_flowchart.md)
+- 📝 [**Assumptions & Logic**](Deliverables/assumptions.md)
+- 🔌 [**API Documentation**](Deliverables/api_documentation.md)
+- 📦 [**Submission README**](Deliverables/README.md)
+
 ## 🧠 Key Features
 
 - **Multi-Phase Adjudication**: Sequential logic enforcing integrity, consistency, eligibility, and limits.
 - **AI Document Intelligence**: Integrated Sarvam AI and Gemini for OCR and medical necessity validation.
 - **Financial Transparency**: Detailed audit logs of all deductions (co-pays, sub-limits, exclusions).
-- **Rule-Based Engine**: Strict enforcement of the 30-day submission rule, waiting periods, and consultation caps.
+- **Admin & Evaluation Suite**: Built-in tools for policy configuration and automated benchmarking.
 - **Premium UX**: High-fidelity UI with animated progress tracking and bento-style verdict summaries.
-
-## 📂 Project Information
-
-- [Adjudication Rules](Project_information/adjudication_rules.md)
-- [Architecture Diagram](Project_information/architecture_diagram.md)
-- [Decision Logic Flowchart](Project_information/decision_flowchart.md)
-- [Assumptions](Project_information/assumptions.md)
-- [Evaluation Report](Project_information/evaluation_report.md)
 
 ## 🧪 Testing
 
